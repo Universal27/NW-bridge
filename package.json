@@ -1,7 +1,6 @@
 {
   "name": "nw-wix-bridge",
   "version": "1.0.0",
-  "description": "Secure middleware for Northwest Registered Agent API integration",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
