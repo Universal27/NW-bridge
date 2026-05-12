@@ -43,8 +43,8 @@ app.use('/api', limiter);
 app.use(express.json());
 
 // --- CONFIGURATION ---
-const NW_API_KEY = process.env.NW_API_KEY;
-const NW_API_SECRET = process.env.NW_API_SECRET;
+const NW_API_KEY = "23ce64f38998adba3e2e4d01ec4b39e6f50e82c095111c406ad067f15ab70a439c4b6710f9b76979";
+const NW_API_SECRET = "647c2e7e9f270bbad1784eb8130140dfad09910678f16f537e36ad28f172f77496e024b63ce11553T";
 const NW_BASE_URL = 'https://api.northwestregisteredagent.com/v1/filings';
 
 // Validate environment variables immediately
