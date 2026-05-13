@@ -9,60 +9,114 @@ const Joi = require('joi');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ====================== SECURITY ======================
 app.use(helmet());
+app.use(express.json({ limit: '10kb' }));
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['*'];
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',') 
+    : ['https://www.universallawadvisors.com', 'https://universallawadvisors.com'];
 
 app.use(cors({
     origin: allowedOrigins,
-    methods: ['POST', 'GET', 'OPTIONS'],
+    methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-app.use('/api', rateLimit({ windowMs: 15*60*1000, max: 100 }));
+// Rate Limiting
+app.use('/api', rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+}));
 
-app.use(express.json());
-
+// ====================== CONFIG ======================
 const BRIDGE_API_KEY = process.env.RENDER_BRIDGE_KEY;
 const NW_API_KEY = process.env.NW_API_KEY;
 const NW_API_SECRET = process.env.NW_API_SECRET;
 const NW_BASE_URL = 'https://api.northwestregisteredagent.com/v1';
 
+if (!BRIDGE_API_KEY || !NW_API_KEY || !NW_API_SECRET) {
+    console.error('❌ Missing critical environment variables!');
+    process.exit(1);
+}
+
 // Auth Middleware
-app.use('/api', (req, res, next) => {
+const authenticateBridge = (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
-    if (token !== BRIDGE_API_KEY) return res.status(401).json({success: false, error: "Unauthorized"});
+    if (token !== BRIDGE_API_KEY) {
+        return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
     next();
-});
+};
 
-// Health
-app.get('/health', (req, res) => res.json({status: 'ok'}));
+// ====================== ROUTES ======================
+app.get('/health', (req, res) => res.json({ status: 'ok', version: '2.0' }));
 
-// === MAIN FILING ENDPOINT (expandable) ===
-app.post('/api/filing', async (req, res) => {
+// Main Filing Endpoint (supports LLC, Corp, Registered Agent, etc.)
+app.post('/api/filing', authenticateBridge, async (req, res) => {
     try {
         const schema = Joi.object({
-            state: Joi.string().length(2).required(),
-            entityType: Joi.string().valid('LLC','Corp','S-Corp').default('LLC'),
-            // ... add more fields later
+            productType: Joi.string().valid('LLC', 'Corp', 'RegisteredAgent', 'S-Corp').default('LLC'),
+            state: Joi.string().length(2).uppercase().required(),
+            entityName: Joi.string().min(3).required(),
+            email: Joi.string().email().required(),
+            phone: Joi.string().required(),
+            address1: Joi.string().required(),
+            city: Joi.string().required(),
+            zip: Joi.string().required(),
+            // Future fields
+            // owners, ein, etc.
         });
 
         const { error, value } = schema.validate(req.body);
-        if (error) return res.status(400).json({success: false, error: error.details[0].message});
+        if (error) {
+            return res.status(400).json({ success: false, error: error.details[0].message });
+        }
 
-        const payload = { filings: [{ ...value }] };   // adjust as needed
+        const payload = {
+            filings: [{
+                state: value.state,
+                entity_type: value.productType === 'RegisteredAgent' ? 'RegisteredAgent' : value.productType,
+                entity_name: value.entityName,
+                client_email: value.email,
+                client_phone: value.phone,
+                address1: value.address1,
+                city: value.city,
+                state_code: value.state,
+                zip: value.zip,
+                country: "US"
+            }]
+        };
 
-        const auth = Buffer.from(`${NW_API_KEY}:${NW_API_SECRET}`).toString('base64');
+        const authString = Buffer.from(`${NW_API_KEY}:${NW_API_SECRET}`).toString('base64');
 
         const nwResponse = await axios.post(`${NW_BASE_URL}/filings`, payload, {
-            headers: { 'Authorization': `Basic ${auth}` }
+            headers: {
+                'Authorization': `Basic ${authString}`,
+                'Content-Type': 'application/json',
+                'User-Agent': 'UniversalLawAdvisors-Bridge/2.0'
+            },
+            timeout: 15000
         });
 
-        res.json({success: true, data: nwResponse.data});
-    } catch (err) {
-        console.error(err.response?.data || err.message);
-        res.status(500).json({success: false, error: "Filing failed"});
+        res.json({
+            success: true,
+            message: "Order submitted successfully to Northwest",
+            orderId: nwResponse.data?.order_id || null,
+            data: nwResponse.data
+        });
+
+    } catch (error) {
+        console.error('Northwest API Error:', error.response?.data || error.message);
+        res.status(500).json({
+            success: false,
+            error: "Failed to submit order. Please try again or contact support."
+        });
     }
 });
 
-app.listen(PORT, () => console.log(`Bridge running on ${PORT}`));
+app.listen(PORT, () => {
+    console.log(`🚀 Northwest Bridge v2.0 running on port ${PORT}`);
+});
