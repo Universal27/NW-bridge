@@ -52,33 +52,34 @@ const authenticateBridge = (req, res, next) => {
 };
 
 // ====================== ROUTES ======================
-app.get('/health', (req, res) => res.json({ status: 'ok', version: '2.0' }));
+app.get('/health', (req, res) => res.json({ status: 'ok', version: '2.1' }));
 
-// Main Filing Endpoint (supports LLC, Corp, Registered Agent, etc.)
+// Main Filing Endpoint
 app.post('/api/filing', authenticateBridge, async (req, res) => {
     try {
         const schema = Joi.object({
-            productType: Joi.string().valid('LLC', 'Corp', 'RegisteredAgent', 'S-Corp').default('LLC'),
+            productType: Joi.string().valid('LLC', 'Corp', 'S-Corp', 'RegisteredAgent').default('LLC'),
             state: Joi.string().length(2).uppercase().required(),
-            entityName: Joi.string().min(3).required(),
+            entityName: Joi.string().min(3).max(100).required(),
             email: Joi.string().email().required(),
-            phone: Joi.string().required(),
-            address1: Joi.string().required(),
-            city: Joi.string().required(),
-            zip: Joi.string().required(),
-            // Future fields
-            // owners, ein, etc.
-        });
+            phone: Joi.string().min(10).required(),
+            address1: Joi.string().min(5).required(),
+            city: Joi.string().min(2).required(),
+            zip: Joi.string().pattern(/^\d{5}(-\d{4})?$/).required(),
+        }).unknown(true);   // Allows extra fields
 
         const { error, value } = schema.validate(req.body);
         if (error) {
-            return res.status(400).json({ success: false, error: error.details[0].message });
+            return res.status(400).json({ 
+                success: false, 
+                error: error.details[0].message 
+            });
         }
 
         const payload = {
             filings: [{
                 state: value.state,
-                entity_type: value.productType === 'RegisteredAgent' ? 'RegisteredAgent' : value.productType,
+                entity_type: value.productType === 'RegisteredAgent' ? 'Registered Agent' : value.productType,
                 entity_name: value.entityName,
                 client_email: value.email,
                 client_phone: value.phone,
@@ -96,7 +97,7 @@ app.post('/api/filing', authenticateBridge, async (req, res) => {
             headers: {
                 'Authorization': `Basic ${authString}`,
                 'Content-Type': 'application/json',
-                'User-Agent': 'UniversalLawAdvisors-Bridge/2.0'
+                'User-Agent': 'UniversalLawAdvisors-Bridge/2.1'
             },
             timeout: 15000
         });
@@ -118,5 +119,5 @@ app.post('/api/filing', authenticateBridge, async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Northwest Bridge v2.0 running on port ${PORT}`);
+    console.log(`🚀 Northwest Bridge v2.1 running on port ${PORT}`);
 });
