@@ -3,29 +3,19 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const Joi = require('joi');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Security
 app.use(helmet());
-app.use(express.json({ limit: '10kb' }));
+app.use(express.json());
 
 app.use(cors({
     origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : true
 }));
 
-// Rate limiting
-app.use('/api', rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100
-}));
-
 const BRIDGE_API_KEY = process.env.RENDER_BRIDGE_KEY;
 
-// Auth
 app.use('/api', (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (token !== BRIDGE_API_KEY) {
@@ -34,31 +24,21 @@ app.use('/api', (req, res, next) => {
     next();
 });
 
-// Health Check
-app.get('/health', (req, res) => {
-    res.json({ status: 'ok', version: '2.5' });
-});
+app.get('/health', (req, res) => res.json({ status: 'ok', version: 'final' }));
 
-// Main Filing Endpoint
 app.post('/api/filing', async (req, res) => {
     try {
-        const { state, productType = "LLC", entityName, email, phone, address1, city, zip } = req.body;
-
-        if (!state || !entityName || !email) {
-            return res.status(400).json({ success: false, error: "Missing required fields" });
-        }
-
         const payload = {
             filings: [{
-                state: state.toUpperCase(),
-                entity_type: productType,
-                entity_name: entityName,
-                client_email: email,
-                client_phone: phone,
-                address1: address1,
-                city: city,
-                state_code: state.toUpperCase(),
-                zip: zip,
+                state: req.body.state.toUpperCase(),
+                entity_type: req.body.productType || "LLC",
+                entity_name: req.body.entityName,
+                client_email: req.body.email,
+                client_phone: req.body.phone,
+                address1: req.body.address1,
+                city: req.body.city,
+                state_code: req.body.state.toUpperCase(),
+                zip: req.body.zip,
                 country: "US"
             }]
         };
@@ -69,18 +49,15 @@ app.post('/api/filing', async (req, res) => {
             headers: {
                 'Authorization': `Basic ${authString}`,
                 'Content-Type': 'application/json'
-            },
-            timeout: 15000
+            }
         });
 
         res.json({ success: true, data: nwResponse.data });
 
     } catch (error) {
         console.error(error);
-        res.status(500).json({ success: false, error: "Failed to submit order" });
+        res.status(500).json({ success: false, error: "Failed to submit" });
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`🚀 Railway Bridge v2.5 running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Bridge running`));
