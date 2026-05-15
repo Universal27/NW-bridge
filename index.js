@@ -5,17 +5,20 @@ const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get('/health', async (req, res) => {
+app.get('/health', (req, res) => res.json({ status: 'ok', version: '2.4' }));
+
+// Test Northwest connectivity
+app.get('/test-nw', async (req, res) => {
     try {
-        const test = await axios.get('https://api.northwestregisteredagent.com/v1/filings', { timeout: 10000 });
-        res.json({ status: 'ok', northwest_reachable: true });
-    } catch (e) {
+        const response = await axios.get('https://api.northwestregisteredagent.com', { timeout: 8000 });
+        res.json({ success: true, message: "Can reach Northwest" });
+    } catch (err) {
         res.json({ 
-            status: 'ok', 
-            northwest_reachable: false, 
-            error: e.message 
+            success: false, 
+            message: err.message,
+            code: err.code 
         });
     }
 });
 
-app.listen(PORT, () => console.log(`Diagnostic running`));
+app.listen(PORT, () => console.log(`v2.4 running`));
