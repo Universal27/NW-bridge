@@ -14,19 +14,10 @@ app.use(cors({
     origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : true
 }));
 
-// IMPORTANT: Use BRIDGE_KEY to match Railway
-const BRIDGE_API_KEY = process.env.BRIDGE_KEY;
+// TEMP: Auth removed for testing
+// const BRIDGE_API_KEY = process.env.BRIDGE_KEY;
 
-app.use('/api', (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (token !== BRIDGE_API_KEY) {
-        console.log("❌ Unauthorized - Key mismatch");
-        return res.status(401).json({ success: false, error: "Unauthorized" });
-    }
-    next();
-});
-
-app.get('/health', (req, res) => res.json({ status: 'ok', version: 'final' }));
+app.get('/health', (req, res) => res.json({ status: 'ok', version: 'test' }));
 
 app.post('/api/filing', async (req, res) => {
     try {
@@ -62,4 +53,4 @@ app.post('/api/filing', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => console.log(`🚀 Bridge running`));
+app.listen(PORT, () => console.log(`🚀 Bridge running (TEST MODE - no auth)`));
