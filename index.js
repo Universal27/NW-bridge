@@ -14,13 +14,13 @@ app.use(cors({
     origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : true
 }));
 
-// Use BRIDGE_KEY to match what you set in Railway
+// IMPORTANT: Use BRIDGE_KEY to match Railway
 const BRIDGE_API_KEY = process.env.BRIDGE_KEY;
 
 app.use('/api', (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (token !== BRIDGE_API_KEY) {
-        console.log("❌ Unauthorized - wrong key or missing BRIDGE_KEY");
+        console.log("❌ Unauthorized - Key mismatch");
         return res.status(401).json({ success: false, error: "Unauthorized" });
     }
     next();
@@ -62,4 +62,4 @@ app.post('/api/filing', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => console.log(`🚀 Bridge running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Bridge running`));
